@@ -1,0 +1,7 @@
+
+[$0 == "root"]: {{ input[0] }} - {{ input[-1] }}
+
+[$0 == "root"] <<EOF:
+{{ input[0] }} - {{ input[-1] }}
+EOF
+

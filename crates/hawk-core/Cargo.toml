@@ -13,6 +13,7 @@ hawk-parser = { path = "../hawk-parser" }
 rust_decimal = "1.29.1"
 ion-rs = "0.18.1"
 csv = "1.3.0"
+chrono = "0.4.23"
 
 [lib]
 path = "src/lib.rs"

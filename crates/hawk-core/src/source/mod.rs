@@ -1,11 +1,13 @@
 use anyhow::{anyhow, Result};
+use chrono::{DateTime, FixedOffset};
 use hawk_parser::Expr;
 use ion_rs::{
     element::{Element, Value},
-    types::{Int, Str, Struct},
+    external::bigdecimal::{num_bigint::BigInt, BigDecimal},
+    types::{Decimal, Int, IonType, Str, Struct, Timestamp},
     IonData,
 };
-use std::borrow::Cow;
+use std::{borrow::Cow, str::FromStr};
 
 pub mod csv;
 
@@ -27,24 +29,54 @@ pub fn resolve_var<'a>(item: &'a Struct, expr: &Expr) -> Result<&'a Value> {
     Err(anyhow!("No value"))
 }
 
+pub struct ValueImplicitConversion {}
+impl ValueImplicitConversion {
+    fn coerce_value(value: &Value, ion_type: IonType) -> Result<Cow<Value>> {
+        match (value, ion_type) {
+            (Value::String(v), IonType::Bool) => Ok(Cow::Owned(Value::Bool(v.text().parse()?))),
+            (Value::String(v), IonType::Int) => {
+                Ok(Cow::Owned(Value::Int(Int::BigInt(v.text().parse()?))))
+            }
+            (Value::String(v), IonType::Float) => Ok(Cow::Owned(Value::Float(v.text().parse()?))),
+            (Value::String(v), IonType::Decimal) => {
+                let decimal = BigDecimal::from_str(v.text())?;
+                Ok(Cow::Owned(Value::Decimal(Decimal::from(decimal))))
+            }
+            (Value::String(v), IonType::Timestamp) => {
+                let datetime: DateTime<FixedOffset> = v.text().parse()?;
+                Ok(Cow::Owned(Value::Timestamp(Timestamp::from(datetime))))
+            }
+            (Value::Int(Int::I64(v)), IonType::Float) => Ok(Cow::Owned(Value::Float(*v as f64))),
+            (Value::Int(Int::I64(v)), IonType::Decimal) => {
+                let decimal = BigDecimal::new(BigInt::from(*v), 0);
+                Ok(Cow::Owned(Value::Decimal(Decimal::from(decimal))))
+            }
+            (Value::Int(Int::BigInt(v)), IonType::Decimal) => {
+                let decimal = BigDecimal::new(v.clone(), 0);
+                Ok(Cow::Owned(Value::Decimal(Decimal::from(decimal))))
+            }
+            _ => Ok(Cow::Borrowed(value)),
+        }
+    }
+
+    fn coerce<'a, 'b>(lhs: &'a Value, rhs: &'b Value) -> Result<(Cow<'a, Value>, Cow<'b, Value>)> {
+        if lhs.ion_type() != rhs.ion_type() {
+            Ok((
+                ValueImplicitConversion::coerce_value(lhs, rhs.ion_type())?,
+                ValueImplicitConversion::coerce_value(rhs, lhs.ion_type())?,
+            ))
+        } else {
+            Ok((Cow::Borrowed(lhs), Cow::Borrowed(rhs)))
+        }
+    }
+}
+
 pub fn resolve_cond(item: &Struct, expr: &Expr) -> Result<Value> {
     match expr {
         Expr::Equal(lhs, rhs) => {
-            let lhs = resolve_expr(item, lhs)?;
-            let rhs = resolve_expr(item, rhs)?;
-            if lhs.ion_type() != rhs.ion_type() {
-                let lhs = match lhs.as_ref() {
-                    Value::String(text) => text.as_ref().to_owned(),
-                    _ => lhs.as_ref().to_string(),
-                };
-                let rhs = match rhs.as_ref() {
-                    Value::String(text) => text.as_ref().to_owned(),
-                    _ => rhs.as_ref().to_string(),
-                };
-                Ok(Value::Bool(lhs == rhs))
-            } else {
-                Ok(Value::Bool(lhs == rhs))
-            }
+            let (lhs, rhs) = (resolve_expr(item, lhs)?, resolve_expr(item, rhs)?);
+            let (lhs, rhs) = ValueImplicitConversion::coerce(lhs.as_ref(), rhs.as_ref())?;
+            Ok(Value::Bool(lhs == rhs))
         }
         Expr::NotEqual(lhs, rhs) => {
             let lhs = resolve_expr(item, lhs)?;

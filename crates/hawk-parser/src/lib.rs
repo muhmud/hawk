@@ -1,7 +1,7 @@
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_while},
-    character::complete::{alpha1, digit1, multispace0},
+    bytes::complete::{tag, take_while, take_while1},
+    character::complete::{alpha1, char, digit1, multispace0},
     combinator::{map, map_res, opt, recognize},
     multi::{many0, separated_list1},
     sequence::{delimited, pair, preceded},
@@ -28,6 +28,30 @@ pub enum Expr {
 
 pub fn parse_number(input: &str) -> IResult<&str, Expr> {
     map_res(digit1, |s: &str| s.parse().map(Expr::Integer))(input)
+}
+
+pub fn parse_string(input: &str, quote_char: char) -> IResult<&str, Expr> {
+    let string_char = take_while1(|c| c != '\\' && c != quote_char);
+    let escaped_char = map(preceded(char('\\'), char(quote_char)), |c| c);
+    delimited(
+        char(quote_char),
+        map(
+            many0(alt((
+                map(string_char, |s: &str| s.to_string()),
+                map(escaped_char, |c| c.to_string()),
+            ))),
+            |chunks| Expr::String(chunks.join("")),
+        ),
+        char(quote_char),
+    )(input)
+}
+
+pub fn parse_double_quoted_string(input: &str) -> IResult<&str, Expr> {
+    parse_string(input, '"')
+}
+
+pub fn parse_single_quoted_string(input: &str) -> IResult<&str, Expr> {
+    parse_string(input, '\'')
 }
 
 pub fn parse_identifier(input: &str) -> IResult<&str, &str> {
@@ -66,6 +90,8 @@ pub fn parse_variable_with_predicate(input: &str) -> IResult<&str, Expr> {
 pub fn parse_atom(input: &str) -> IResult<&str, Expr> {
     alt((
         parse_number,
+        parse_double_quoted_string,
+        parse_single_quoted_string,
         parse_variable_with_predicate,
         delimited(
             preceded(multispace0, tag("(")),

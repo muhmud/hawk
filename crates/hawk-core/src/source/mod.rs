@@ -79,34 +79,34 @@ pub fn resolve_cond(item: &Struct, expr: &Expr) -> Result<Value> {
             Ok(Value::Bool(lhs == rhs))
         }
         Expr::NotEqual(lhs, rhs) => {
-            let lhs = resolve_expr(item, lhs)?;
-            let rhs = resolve_expr(item, rhs)?;
+            let (lhs, rhs) = (resolve_expr(item, lhs)?, resolve_expr(item, rhs)?);
+            let (lhs, rhs) = ValueImplicitConversion::coerce(lhs.as_ref(), rhs.as_ref())?;
             Ok(Value::Bool(lhs != rhs))
         }
         Expr::LessThan(lhs, rhs) => {
-            let lhs = resolve_expr(item, lhs)?;
-            let rhs = resolve_expr(item, rhs)?;
+            let (lhs, rhs) = (resolve_expr(item, lhs)?, resolve_expr(item, rhs)?);
+            let (lhs, rhs) = ValueImplicitConversion::coerce(lhs.as_ref(), rhs.as_ref())?;
             Ok(Value::from(
                 IonData::from(lhs.as_ref()) < IonData::from(rhs.as_ref()),
             ))
         }
         Expr::LessThanOrEqual(lhs, rhs) => {
-            let lhs = resolve_expr(item, lhs)?;
-            let rhs = resolve_expr(item, rhs)?;
+            let (lhs, rhs) = (resolve_expr(item, lhs)?, resolve_expr(item, rhs)?);
+            let (lhs, rhs) = ValueImplicitConversion::coerce(lhs.as_ref(), rhs.as_ref())?;
             Ok(Value::from(
                 IonData::from(lhs.as_ref()) <= IonData::from(rhs.as_ref()),
             ))
         }
         Expr::GreaterThan(lhs, rhs) => {
-            let lhs = resolve_expr(item, lhs)?;
-            let rhs = resolve_expr(item, rhs)?;
+            let (lhs, rhs) = (resolve_expr(item, lhs)?, resolve_expr(item, rhs)?);
+            let (lhs, rhs) = ValueImplicitConversion::coerce(lhs.as_ref(), rhs.as_ref())?;
             Ok(Value::from(
                 IonData::from(lhs.as_ref()) > IonData::from(rhs.as_ref()),
             ))
         }
         Expr::GreaterThanOrEqual(lhs, rhs) => {
-            let lhs = resolve_expr(item, lhs)?;
-            let rhs = resolve_expr(item, rhs)?;
+            let (lhs, rhs) = (resolve_expr(item, lhs)?, resolve_expr(item, rhs)?);
+            let (lhs, rhs) = ValueImplicitConversion::coerce(lhs.as_ref(), rhs.as_ref())?;
             Ok(Value::from(
                 IonData::from(lhs.as_ref()) >= IonData::from(rhs.as_ref()),
             ))
